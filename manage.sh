@@ -25,8 +25,15 @@ case "$1" in
   logs)
     npx pm2 logs $APP_NAME
     ;;
+  rebuild)
+    echo "Rebuilding $APP_NAME..."
+    git pull
+    npm install
+    npm run build
+    $0 restart
+    ;;
   *)
-    echo "Usage: ./manage.sh {start|stop|restart|delete|status|logs}"
+    echo "Usage: ./manage.sh {start|stop|restart|delete|status|logs|rebuild}"
     exit 1
     ;;
 esac
