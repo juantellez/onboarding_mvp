@@ -13,7 +13,7 @@ case "$1" in
     ;;
   restart)
     echo "Restarting $APP_NAME..."
-    npx pm2 restart $APP_NAME
+    npx pm2 restart $APP_NAME || npx pm2 start npm --name "$APP_NAME" -- start
     ;;
   delete)
     echo "Deleting $APP_NAME from PM2..."
