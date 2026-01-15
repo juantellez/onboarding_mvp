@@ -1,0 +1,256 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model OnboardingSession {
+  id          String   @id @default(uuid())
+  status      String   @default("DRAFT") // DRAFT, IN_REVIEW, APPROVED, REJECTED
+  currentStep Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company               Company?
+  legalRepresentatives  LegalRepresentative[]
+  beneficialOwners      BeneficialOwner[]
+  transactionProfile    TransactionProfile?
+  documents             Document[]
+  managementStructure   ManagementStructure?
+  orgStructure          OrgStructureMember[]
+  shareholders          Shareholder[]
+  patrimonialLinks      PatrimonialLink[]
+}
+
+model Shareholder {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  nombreRazonSocial   String
+  porcentaje          String? // Using string to allow "5%" or decimal
+  curpRfc             String?
+  
+  declaraImpuestosEUA Boolean @default(false)
+  idFiscalEUA         String?
+}
+
+model PatrimonialLink {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  razonSocial         String
+  fechaRegistro       DateTime?
+  paisConstitucion    String?
+  rfc                 String?
+  sectorGiro          String?
+  telefono            String?
+  paginaInternet      String?
+  
+  esConsejero         Boolean @default(false)
+  porcentaje          String? // Range bucket "5% a 9%" etc
+}
+
+model ManagementStructure {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String   @unique
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  tipo                String   // "CONSEJO" or "ADMINISTRADOR_UNICO"
+  members             CouncilMember[]
+}
+
+model CouncilMember {
+  id                    String   @id @default(uuid())
+  managementStructureId String
+  managementStructure   ManagementStructure @relation(fields: [managementStructureId], references: [id], onDelete: Cascade)
+
+  nombre              String
+  curp                String?
+  puesto              String
+}
+
+model OrgStructureMember {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  nombre              String
+  fechaNacimiento     DateTime
+  puesto              String
+}
+
+model Company {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String   @unique
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  // Page 1: General Info
+  razonSocial         String
+  rfc                 String
+  cobertura           String?  // Internacional, Nacional, Estatal
+  estadosCobertura    String?  // Comma separated if multiple
+  sectorGiro          String?
+
+  // Page 1: Contact
+  telefono            String
+  telefonoAdicional   String?
+  email               String? // Added for general contact if needed, though form asks in reps
+
+  // Page 1: FATCA/CRS
+  declaraImpuestosEUA Boolean @default(false)
+  idFiscalEUA         String?
+
+  // Page 1: Procedencia
+  procedenciaRecursos String? // Actos propios, Recursos publicos, terceros
+
+  // Page 1: Uso/Destino
+  usoDestino          String? // Inversiones, Admin Cajas, etc.
+
+  // Page 1: Tipo Manejo
+  tipoManejo          String? // No discrecional, etc.
+
+  // Page 1: Public Company
+  cotizaBolsa         Boolean @default(false)
+  paisBolsa           String?
+  clavePizarra        String?
+
+  // Page 1: Bank
+  clabe               String?
+  banco               String?
+  noCuenta            Boolean @default(false)
+
+  address             Address?
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  
+  // Relations (Only one should be populated)
+  companyId           String? @unique
+  company             Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  beneficialOwnerId   String? @unique
+  beneficialOwner     BeneficialOwner? @relation(fields: [beneficialOwnerId], references: [id], onDelete: Cascade)
+
+  legalRepresentativeId String? @unique
+  legalRepresentative   LegalRepresentative? @relation(fields: [legalRepresentativeId], references: [id], onDelete: Cascade)
+
+  calle       String
+  numExt      String
+  numInt      String?
+  colonia     String
+  cp          String
+  ciudad      String
+  municipio   String
+  estado      String
+  pais        String
+}
+
+model TransactionProfile {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String   @unique
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  // Page 2: Transaccionalidad
+  depositoInicial           String?
+  depositosMensualesCant    String? // Range bucket
+  depositosMensualesMonto   String? // If > 5M
+  depositosMensualesNum     Int?
+
+  retirosMensualesCant      String? // Range bucket
+  retirosMensualesMonto     String? // If > 5M
+  retirosMensualesNum       Int?
+
+  operarFondosExentos       Boolean?
+  operarDivisas             Boolean?
+  divisasFXPayments         Boolean?
+  divisasInversion          Boolean?
+}
+
+model LegalRepresentative {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  // Page 3: Apoderados
+  nombre              String
+  email               String
+  curp                String
+  rfc                 String
+  telefono            String?
+  
+  tipoFirma           String? // Individual, Mancomunada
+  girarOrdenes        Boolean @default(false)
+  recibeFacturas      Boolean @default(false)
+  
+  declaraImpuestosEUA Boolean @default(false)
+  idFiscalEUA         String?
+  
+  esApoderadoAdicional Boolean @default(false)
+
+  authorizedPersons   AuthorizedPerson[]
+  address             Address?
+}
+
+model AuthorizedPerson {
+  id                    String   @id @default(uuid())
+  legalRepresentativeId String
+  legalRepresentative   LegalRepresentative @relation(fields: [legalRepresentativeId], references: [id], onDelete: Cascade)
+
+  nombre              String
+  email               String?
+  curp                String?
+  
+  rolOperativo        Boolean @default(false)
+  instruccionOps      Boolean @default(false)
+  recepcionFacturas   Boolean @default(false)
+}
+
+model BeneficialOwner {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  // Page 4: Propietario Real
+  nombre              String
+  fechaNacimiento     DateTime?
+  paisNacimiento      String?
+  estadoNacimiento    String?
+  curp                String
+  rfc                 String?  // Added
+  paisNacionalidad    String?
+  paisResidenciaFiscal String?
+  genero              String?
+  telefono            String?
+  email               String?
+  sectorGiro          String?
+  
+  motivoControl       Int? // 1-5
+  
+  declaraImpuestosEUA Boolean @default(false)
+  idFiscalEUA         String?
+
+  address             Address?
+}
+
+model Document {
+  id                  String   @id @default(uuid())
+  onboardingSessionId String
+  onboardingSession   OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+
+  type                String   // ACTA_CONSTITUTIVA, PODER, INE_REP, COMPROBANTE_DOM_EMP, etc.
+  fileUrl             String
+  originalName        String
+  mimeType            String
+  size                Int
+  status              String   @default("UPLOADED") // UPLOADED, VERIFIED, REJECTED
+  uploadedAt          DateTime @default(now())
+}
